@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Download, Orbit, Telescope } from 'lucide-react';
 import { DataSourceBar } from './components/DataSourceBar';
+import { LiveOrbitTracker } from './components/LiveOrbitTracker';
 import { LocationForm } from './components/LocationForm';
 import { PassDetails } from './components/PassDetails';
 import { PassList } from './components/PassList';
@@ -11,8 +12,8 @@ import { predictPasses } from './services/passPredictor';
 import { fetchLiveTle, getDemoTleDataset, TleFetchError } from './services/tleService';
 import {
   ObserverLocation,
+  OrbitDataset,
   PredictionResult,
-  TleDataset,
   ViewingPreferences,
 } from './types/orbit';
 
@@ -42,13 +43,14 @@ export function App() {
   const [preferences, setPreferences] = useState<ViewingPreferences>(INITIAL_PREFERENCES);
   const [satelliteId, setSatelliteId] = useState<string>(DEFAULT_SATELLITE_ID);
 
-  const [tle, setTle] = useState<TleDataset | null>(null);
+  const [tle, setTle] = useState<OrbitDataset | null>(null);
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [selectedPassId, setSelectedPassId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [cachedFallbackTle, setCachedFallbackTle] = useState<TleDataset | null>(null);
+  const [propagationError, setPropagationError] = useState<string | null>(null);
+  const [cachedFallbackTle, setCachedFallbackTle] = useState<OrbitDataset | null>(null);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const skyPlotRef = useRef<HTMLDivElement | null>(null);
 
@@ -63,17 +65,28 @@ export function App() {
 
   const computeAndApply = useCallback(
     (
-      activeTle: TleDataset,
+      activeDataset: OrbitDataset,
       nextLoc: ObserverLocation,
       nextPrefs: ViewingPreferences,
     ) => {
-      const result = predictPasses(activeTle, nextLoc, nextPrefs);
-      setPrediction(result);
-      setSelectedPassId((prev) =>
-        prev && result.passes.some((p) => p.id === prev)
-          ? prev
-          : result.passes[0]?.id ?? null,
-      );
+      try {
+        const result = predictPasses(activeDataset, nextLoc, nextPrefs, Date.now());
+        setPropagationError(null);
+        setPrediction(result);
+        setSelectedPassId((prev) =>
+          prev && result.passes.some((p) => p.id === prev)
+            ? prev
+            : result.passes[0]?.id ?? null,
+        );
+      } catch (err) {
+        setPrediction(null);
+        setSelectedPassId(null);
+        setPropagationError(
+          err instanceof Error
+            ? err.message
+            : 'SGP4 orbital propagation failed for these orbital elements.',
+        );
+      }
     },
     [],
   );
@@ -87,17 +100,18 @@ export function App() {
     ) => {
       setIsLoading(true);
       setErrorMessage(null);
+      setPropagationError(null);
       setCachedFallbackTle(null);
 
       try {
-        const liveTle = await fetchLiveTle(nextSatId, { forceRefresh });
-        setTle(liveTle);
-        computeAndApply(liveTle, nextLoc, nextPrefs);
+        const liveDataset = await fetchLiveTle(nextSatId, { forceRefresh });
+        setTle(liveDataset);
+        computeAndApply(liveDataset, nextLoc, nextPrefs);
       } catch (err) {
         const fetchErr = err as TleFetchError;
         setErrorMessage(
           fetchErr.message ||
-            'Could not fetch live TLE orbit data from CelesTrak. Check your network connection or switch to Demo Mode.',
+            'Could not fetch live OMM orbit data from CelesTrak. Check your network connection or switch to Demo Mode.',
         );
         if (fetchErr.cachedFallback) {
           setCachedFallbackTle(fetchErr.cachedFallback);
@@ -219,6 +233,29 @@ export function App() {
           onExitDemo={() => void runLivePrediction(location, preferences, satelliteId, true)}
         />
 
+        <LiveOrbitTracker dataset={tle} location={location} />
+
+        {propagationError && (
+          <section className="error-banner" role="alert">
+            <div className="error-banner-body">
+              <AlertCircle size={20} aria-hidden="true" />
+              <div>
+                <strong>Orbital propagation error</strong>
+                <p>{propagationError}</p>
+              </div>
+            </div>
+            <div className="error-banner-actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-compact"
+                onClick={() => void runLivePrediction(location, preferences, satelliteId, true)}
+              >
+                Refresh Orbit Data
+              </button>
+            </div>
+          </section>
+        )}
+
         {errorMessage && (
           <section className="error-banner" role="alert">
             <div className="error-banner-body">
@@ -242,7 +279,7 @@ export function App() {
                   className="btn btn-secondary btn-compact"
                   onClick={handleUseCachedLive}
                 >
-                  Use Stale Cached TLE
+                  Use Stale Cached Data
                 </button>
               )}
               <button
@@ -250,7 +287,7 @@ export function App() {
                 className="btn btn-demo btn-compact"
                 onClick={handleActivateDemo}
               >
-                Open Demo Mode (Sample TLE)
+                Open Demo Mode (Sample Data)
               </button>
             </div>
           </section>
@@ -291,8 +328,11 @@ export function App() {
                 passes={prediction.passes}
                 stats={prediction.stats}
                 selectedPassId={selectedPassId}
+                locationName={location.name}
                 timezone={location.timezone}
                 minElevationDeg={preferences.minElevationDeg}
+                searchStartMs={prediction.searchStartMs}
+                lookaheadDays={prediction.lookaheadDays}
                 isDemo={Boolean(tle?.isDemo)}
                 onSelectPass={handleSelectPass}
               />
@@ -320,8 +360,8 @@ export function App() {
       <footer className="app-footer">
         <p>
           OrbitView computes predictions locally in your browser using SGP4 orbital propagation (
-          <code>satellite.js</code>) and public GP/TLE data from CelesTrak. Visibility depends on
-          local skies and obstructions.
+          <code>satellite.js</code> <code>json2satrec</code>) and public OMM JSON data from
+          CelesTrak. Visibility depends on local skies and obstructions.
         </p>
       </footer>
     </div>

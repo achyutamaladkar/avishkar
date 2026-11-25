@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowUpRight, Clock, Eye, Sparkles } from 'lucide-react';
 import {
   azimuthToCompass,
+  formatDateTimeInZone,
   formatDuration,
   formatPassDate,
   formatPassShortTime,
@@ -13,8 +14,11 @@ interface PassListProps {
   passes: SatellitePass[];
   stats: FilteredPassStats | null;
   selectedPassId: string | null;
+  locationName: string;
   timezone: string;
   minElevationDeg: number;
+  searchStartMs: number;
+  lookaheadDays: number;
   isDemo: boolean;
   onSelectPass: (passId: string) => void;
 }
@@ -35,19 +39,28 @@ export const PassList: React.FC<PassListProps> = ({
   passes,
   stats,
   selectedPassId,
+  locationName,
   timezone,
   minElevationDeg,
+  searchStartMs,
+  lookaheadDays,
   isDemo,
   onSelectPass,
 }) => {
+  const windowLabel = `${lookaheadDays}-day window starting ${formatDateTimeInZone(
+    searchStartMs,
+    timezone,
+  )} (${timezone})`;
+
   if (passes.length === 0) {
     return (
       <div className="panel empty-panel">
-        <h3>No likely-visible passes found</h3>
+        <h3>No upcoming likely-visible passes found</h3>
         <p>
-          We checked {stats?.totalAboveHorizon ?? 0} above-horizon passes in your selected window,
-          but none met all visibility criteria ({stats?.daylight ?? 0} in daylight,{' '}
-          {stats?.inShadow ?? 0} in Earth’s shadow, {stats?.tooLow ?? 0} below {minElevationDeg}°).
+          Checked {stats?.totalAboveHorizon ?? 0} above-horizon passes for{' '}
+          <strong>{locationName}</strong> over the {windowLabel}, but none met all visibility
+          criteria ({stats?.daylight ?? 0} in daylight, {stats?.inShadow ?? 0} in Earth’s shadow,{' '}
+          {stats?.tooLow ?? 0} below {minElevationDeg}°).
         </p>
         <p className="muted">
           Try lowering the minimum elevation slider or expanding the search window to 10 days.
@@ -67,7 +80,7 @@ export const PassList: React.FC<PassListProps> = ({
         </div>
         {stats && (
           <span className="filter-pill">
-            Filtered from {stats.totalAboveHorizon} total orbits ({timezone})
+            Filtered from {stats.totalAboveHorizon} total orbits · {windowLabel}
           </span>
         )}
       </div>
@@ -76,9 +89,9 @@ export const PassList: React.FC<PassListProps> = ({
         <Eye size={14} aria-hidden="true" />
         <span>
           {isDemo
-            ? 'Sample prediction from archived TLE data (Demo Mode). '
-            : 'Predicted visibility based on SGP4 orbit math, solar illumination, and twilight darkness. '}
-          Local clouds, trees, buildings, and city light pollution can still block the view.
+            ? 'Demo Mode prediction calculated via SGP4 from archived sample elements (not live orbit data). '
+            : 'Predicted visibility calculated via SGP4 from CelesTrak orbit data, solar illumination, and twilight darkness. '}
+          Weather, clouds, trees, buildings, and light pollution can still affect visibility.
         </span>
       </p>
 
@@ -141,7 +154,8 @@ export const PassList: React.FC<PassListProps> = ({
               <div className="pass-card-footer">
                 <span className="sky-pill">{SKY_LABELS[pass.skyCondition]}</span>
                 <span className="inspect-link">
-                  {isSelected ? 'Selected' : 'Inspect sky path'} <ArrowUpRight size={14} aria-hidden="true" />
+                  {isSelected ? 'Selected' : 'Inspect sky path'}{' '}
+                  <ArrowUpRight size={14} aria-hidden="true" />
                 </span>
               </div>
             </button>

@@ -1,3 +1,5 @@
+import type { OMMJsonObject } from 'satellite.js';
+
 export type AppDataMode = 'live' | 'demo';
 
 export interface SatelliteOption {
@@ -21,17 +23,35 @@ export interface ViewingPreferences {
   darknessThresholdDeg: number;
 }
 
-export interface TleDataset {
+export interface OrbitDataset {
   noradId: string;
   satelliteName: string;
-  line1: string;
-  line2: string;
+  format: 'omm-json' | 'tle';
+  omm?: OMMJsonObject;
+  line1?: string;
+  line2?: string;
   sourceName: string;
   sourceUrl: string;
   fetchedAt: string;
   epochAt: string;
   isDemo: boolean;
   fromCache: boolean;
+}
+
+/** Backwards-compatible alias */
+export type TleDataset = OrbitDataset;
+
+export interface CurrentPositionEstimate {
+  timestampMs: number;
+  latitudeDeg: number;
+  longitudeDeg: number;
+  altitudeKm: number;
+  speedKmS: number;
+  azimuthDeg: number;
+  elevationDeg: number;
+  rangeKm: number;
+  isSunlit: boolean;
+  aboveHorizon: boolean;
 }
 
 export interface PassPoint {
@@ -86,6 +106,8 @@ export interface PredictionResult {
   passes: SatellitePass[];
   stats: FilteredPassStats;
   generatedAt: string;
+  searchStartMs: number;
+  lookaheadDays: number;
 }
 
 export interface CityPreset {

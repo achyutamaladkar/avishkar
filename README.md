@@ -15,8 +15,9 @@ All results are clearly labeled as predictions, since clouds, haze, trees, build
 ## Features
 
 - **Location & Viewing Preferences**: City search (live Open-Meteo geocoding with built-in offline city fallback), pasted `"lat, lon"` parsing, manual latitude/longitude/elevation inputs, IANA timezone selector, minimum elevation slider, and opt-in browser geolocation (`Use my location`).
-- **Real SGP4 Pass Predictions**: Fetches live Two-Line Element (TLE) orbital data from **CelesTrak** and runs SGP4 propagation via `satellite.js`.
-- **Responsible Caching & Honest Fallback**: Caches live TLEs in `localStorage` for 2 hours and displays source, refresh age, and TLE epoch. If live fetch fails, OrbitView shows an explicit error and offers a clearly badged **Demo Mode (Sample TLE)** rather than silently substituting sample results.
+- **Real SGP4 Pass Predictions**: Fetches live General Perturbations (GP) OMM JSON data from **CelesTrak** (`FORMAT=JSON`), parses it with `json2satrec` from `satellite.js`, and runs SGP4 propagation forward from the current date and time.
+- **Current Estimated Position**: Propagates the active orbit elements to the current timestamp every 3 seconds to show sub-satellite latitude/longitude, altitude, speed, and observer look angles—explicitly badged as an SGP4 estimate rather than live GPS telemetry.
+- **Responsible Caching & Honest Fallback**: Caches live OMM elements in `localStorage` for 2 hours and displays source, fetch age, element epoch age, and stale-data warnings. If live fetch or propagation fails, OrbitView shows an explicit error and offers a clearly badged **Demo Mode (Sample Data)** rather than silently substituting sample results.
 - **Interactive Sky-Track Radar**: Polar sky-dome plot (`N`/`E`/`S`/`W` compass bearings, `30°`/`60°` rings, minimum elevation ring) distinguishing the bright sunlit visible arc from shadowed/low segments, with an interactive timeline scrubber and Play/Pause simulation.
 - **Reminders & Calendar Export**: Downloads a standard `.ics` calendar file with a `VALARM` reminder (works even when browser notifications are unavailable) plus optional, permission-gated browser notifications with clear explanation of their lifecycle limits.
 - **Installable PWA**: Responsive dark-navy UI designed for desktop and mobile, complete with Web App Manifest and app-shell Service Worker.
@@ -56,7 +57,8 @@ npm run preview
 
 ## Orbit Data Source & Limitations
 
-- **Orbit data**: Public GP/TLE data from [CelesTrak](https://celestrak.org/) (`https://celestrak.org/NORAD/elements/gp.php?CATNR=<id>&FORMAT=TLE`), cached locally for 2 hours.
+- **Orbit data**: Public GP OMM JSON data from [CelesTrak](https://celestrak.org/) (`https://celestrak.org/NORAD/elements/gp.php?CATNR=<id>&FORMAT=JSON`) parsed with `satellite.js` `json2satrec`, cached locally for 2 hours.
+- **Live vs. Demo Mode**: Live predictions show a green `LIVE SGP4 PREDICTIONS` badge in the orbit status bar and `SGP4 Orbit Estimate · Not Live GPS Telemetry` on the position tracker. Demo Mode is only entered explicitly by the user and displays an amber `DEMO MODE · SAMPLE DATA` badge with archived sample OMM elements.
 - **City geocoding**: [Open-Meteo Geocoding API](https://open-meteo.com/) with a built-in curated city fallback for offline use.
 - **Known limitations**:
   - SGP4 predictions gradually lose timing accuracy as a TLE ages (refresh TLE if more than a few days old; ISS performs periodic reboost maneuvers).

@@ -1,12 +1,13 @@
 import * as satellite from 'satellite.js';
 import {
+  CurrentPositionEstimate,
   ObserverLocation,
+  OrbitDataset,
   PassPoint,
   PassQuality,
   PredictionResult,
   SatellitePass,
   SkyCondition,
-  TleDataset,
   ViewingPreferences,
 } from '../types/orbit';
 
@@ -40,31 +41,43 @@ export function azimuthToCompass(azimuthDeg: number): string {
   return dirs[index];
 }
 
+export function createSatRec(dataset: OrbitDataset): satellite.SatRec {
+  let satrec: satellite.SatRec;
+  if (dataset.omm) {
+    satrec = satellite.json2satrec(dataset.omm);
+  } else if (dataset.line1 && dataset.line2) {
+    satrec = satellite.twoline2satrec(dataset.line1, dataset.line2);
+  } else {
+    throw new Error('Orbit dataset contains neither OMM JSON nor TLE orbital elements.');
+  }
+
+  if (satrec.error !== satellite.SatRecError.None) {
+    throw new Error(
+      `SGP4 initialization failed for ${dataset.satelliteName} (error code ${satrec.error}).`,
+    );
+  }
+  return satrec;
+}
+
 /**
- * Computes the Sun's ECI position vector in km using standard USNO/Meeus low-precision solar ephemeris.
+ * Computes the Sun's ECI position vector in km using satellite.js sunPos (with AU -> km conversion).
  */
 export function getSunEciKm(date: Date): { x: number; y: number; z: number } {
-  const jd = date.getTime() / 86_400_000 + 2440587.5;
-  const n = jd - 2451545.0;
-
-  const L = ((280.46 + 0.9856474 * n) % 360 + 360) % 360;
-  const g = (((357.528 + 0.9856003 * n) % 360 + 360) % 360) * DEG_TO_RAD;
-
-  const eclipticLon =
-    (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * DEG_TO_RAD;
-  const obliquity = (23.439 - 0.0000004 * n) * DEG_TO_RAD;
-  const distanceAu = 1.00014 - 0.01671 * Math.cos(g) - 0.00014 * Math.cos(2 * g);
-  const distanceKm = distanceAu * AU_IN_KM;
-
+  const jd = satellite.jday(date);
+  const sunObj = satellite.sunPos(jd) as { rsun: number[] | { x: number; y: number; z: number } };
+  const rsun = sunObj.rsun;
+  const x = Array.isArray(rsun) ? rsun[0] : rsun.x;
+  const y = Array.isArray(rsun) ? rsun[1] : rsun.y;
+  const z = Array.isArray(rsun) ? rsun[2] : rsun.z;
   return {
-    x: distanceKm * Math.cos(eclipticLon),
-    y: distanceKm * Math.cos(obliquity) * Math.sin(eclipticLon),
-    z: distanceKm * Math.sin(obliquity) * Math.sin(eclipticLon),
+    x: x * AU_IN_KM,
+    y: y * AU_IN_KM,
+    z: z * AU_IN_KM,
   };
 }
 
 /**
- * Cylindrical Earth shadow test: returns true when the satellite is illuminated by the Sun.
+ * Checks whether the satellite is illuminated by the Sun using Earth shadow geometry.
  */
 export function isSatelliteSunlit(
   satEciKm: { x: number; y: number; z: number },
@@ -97,7 +110,7 @@ function samplePointAt(
 ): PassPoint | null {
   const date = new Date(timestampMs);
   const propagated = satellite.propagate(satrec, date);
-  if (!propagated || !propagated.position || typeof propagated.position === 'boolean') {
+  if (!propagated || satrec.error !== satellite.SatRecError.None) {
     return null;
   }
 
@@ -106,14 +119,14 @@ function samplePointAt(
   const satEcf = satellite.eciToEcf(satEci, gmst);
   const lookAngles = satellite.ecfToLookAngles(observerGd, satEcf);
 
-  const sunEci = getSunEciKm(date);
-  const sunEcf = satellite.eciToEcf(sunEci, gmst);
+  const sunEciKm = getSunEciKm(date);
+  const sunEcf = satellite.eciToEcf(sunEciKm, gmst);
   const sunLook = satellite.ecfToLookAngles(observerGd, sunEcf);
 
   const elevationDeg = lookAngles.elevation * RAD_TO_DEG;
   const azimuthDeg = ((lookAngles.azimuth * RAD_TO_DEG) % 360 + 360) % 360;
   const sunElevationDeg = sunLook.elevation * RAD_TO_DEG;
-  const sunlit = isSatelliteSunlit(satEci, sunEci);
+  const sunlit = isSatelliteSunlit(satEci, sunEciKm);
   const isVisible =
     elevationDeg >= minElevationDeg && sunElevationDeg <= darknessThresholdDeg && sunlit;
 
@@ -165,13 +178,57 @@ function classifyQuality(maxElevationDeg: number, sunElevationDeg: number): Pass
   return 'fair';
 }
 
+export function estimateCurrentPosition(
+  dataset: OrbitDataset,
+  location: ObserverLocation,
+  now = new Date(),
+): CurrentPositionEstimate {
+  const satrec = createSatRec(dataset);
+  const propagated = satellite.propagate(satrec, now);
+  if (!propagated || satrec.error !== satellite.SatRecError.None) {
+    throw new Error(
+      `Unable to propagate current ${dataset.satelliteName} position (SGP4 error code ${satrec.error}).`,
+    );
+  }
+
+  const gmst = satellite.gstime(now);
+  const satEci = propagated.position;
+  const satVel = propagated.velocity;
+  const geodetic = satellite.eciToGeodetic(satEci, gmst);
+
+  const observerGd: satellite.GeodeticLocation = {
+    longitude: location.longitude * DEG_TO_RAD,
+    latitude: location.latitude * DEG_TO_RAD,
+    height: location.elevationM / 1000,
+  };
+  const satEcf = satellite.eciToEcf(satEci, gmst);
+  const lookAngles = satellite.ecfToLookAngles(observerGd, satEcf);
+
+  const sunEciKm = getSunEciKm(now);
+  const isSunlit = isSatelliteSunlit(satEci, sunEciKm);
+  const elevationDeg = lookAngles.elevation * RAD_TO_DEG;
+
+  return {
+    timestampMs: now.getTime(),
+    latitudeDeg: satellite.degreesLat(geodetic.latitude),
+    longitudeDeg: satellite.degreesLong(geodetic.longitude),
+    altitudeKm: geodetic.height,
+    speedKmS: Math.hypot(satVel.x, satVel.y, satVel.z),
+    azimuthDeg: ((lookAngles.azimuth * RAD_TO_DEG) % 360 + 360) % 360,
+    elevationDeg,
+    rangeKm: lookAngles.rangeSat,
+    isSunlit,
+    aboveHorizon: elevationDeg >= 0,
+  };
+}
+
 export function predictPasses(
-  tle: TleDataset,
+  dataset: OrbitDataset,
   location: ObserverLocation,
   preferences: ViewingPreferences,
   startTimeMs = Date.now(),
 ): PredictionResult {
-  const satrec = satellite.twoline2satrec(tle.line1, tle.line2);
+  const satrec = createSatRec(dataset);
   const observerGd: satellite.GeodeticLocation = {
     longitude: location.longitude * DEG_TO_RAD,
     latitude: location.latitude * DEG_TO_RAD,
@@ -190,6 +247,8 @@ export function predictPasses(
   let prevPoint: PassPoint | null = null;
   let inPass = false;
   let approxRiseMs = startTimeMs;
+  let validSamples = 0;
+  let failedSamples = 0;
 
   for (let t = startTimeMs; t <= endTimeMs; t += COARSE_STEP_MS) {
     const pt = samplePointAt(
@@ -199,7 +258,11 @@ export function predictPasses(
       preferences.minElevationDeg,
       preferences.darknessThresholdDeg,
     );
-    if (!pt) continue;
+    if (!pt) {
+      failedSamples += 1;
+      continue;
+    }
+    validSamples += 1;
 
     if (!inPass && pt.elevationDeg >= 0) {
       inPass = true;
@@ -231,7 +294,7 @@ export function predictPasses(
       const evaluated = buildPassRecord(
         satrec,
         observerGd,
-        tle,
+        dataset,
         approxRiseMs,
         horizonSetMs,
         preferences.minElevationDeg,
@@ -246,17 +309,25 @@ export function predictPasses(
     prevPoint = pt;
   }
 
+  if (validSamples === 0 && failedSamples > 0) {
+    throw new Error(
+      `Orbital propagation failed for ${dataset.satelliteName} (SGP4 error code ${satrec.error}). Refresh orbital data from CelesTrak.`,
+    );
+  }
+
   return {
     passes,
     stats,
     generatedAt: new Date().toISOString(),
+    searchStartMs: startTimeMs,
+    lookaheadDays: preferences.lookaheadDays,
   };
 }
 
 function buildPassRecord(
   satrec: satellite.SatRec,
   observerGd: satellite.GeodeticLocation,
-  tle: TleDataset,
+  dataset: OrbitDataset,
   horizonRiseTimeMs: number,
   horizonSetTimeMs: number,
   minElevationDeg: number,
@@ -324,9 +395,9 @@ function buildPassRecord(
   const sunlitCount = trajectory.filter((p) => p.isSunlit).length;
 
   return {
-    id: `${tle.noradId}-${visibleStart.timestampMs}`,
-    noradId: tle.noradId,
-    satelliteName: tle.satelliteName,
+    id: `${dataset.noradId}-${visibleStart.timestampMs}`,
+    noradId: dataset.noradId,
+    satelliteName: dataset.satelliteName,
     startTimeMs: visibleStart.timestampMs,
     peakTimeMs: refinedPeak.timestampMs,
     endTimeMs: visibleEnd.timestampMs,
@@ -372,6 +443,17 @@ export function formatPassDate(timestampMs: number, timezone: string): string {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+  }).format(new Date(timestampMs));
+}
+
+export function formatDateTimeInZone(timestampMs: number, timezone: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   }).format(new Date(timestampMs));
 }
 

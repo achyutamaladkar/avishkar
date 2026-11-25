@@ -134,17 +134,10 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
           >
             <defs>
               <radialGradient id="skyDomeGrad" cx="50%" cy="50%" r="55%">
-                <stop offset="0%" stopColor="#162a57" />
-                <stop offset="70%" stopColor="#0c1733" />
-                <stop offset="100%" stopColor="#060c1d" />
+                <stop offset="0%" stopColor="#f8fafc" />
+                <stop offset="70%" stopColor="#f1f5f9" />
+                <stop offset="100%" stopColor="#e2e8f0" />
               </radialGradient>
-              <filter id="glowCyan" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
             </defs>
 
             {/* Sky Dome */}
@@ -153,7 +146,7 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
               cy={CENTER}
               r={RADIUS}
               fill="url(#skyDomeGrad)"
-              stroke="rgba(148, 179, 255, 0.36)"
+              stroke="#cbd5e1"
               strokeWidth="1.5"
             />
 
@@ -167,14 +160,16 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
                     cy={CENTER}
                     r={r}
                     fill="none"
-                    stroke="rgba(148, 179, 255, 0.16)"
+                    stroke="#cbd5e1"
                     strokeWidth="1"
+                    strokeDasharray="2 3"
                   />
                   <text
                     x={CENTER + 4}
-                    y={CENTER - r + 12}
-                    fill="rgba(182, 196, 230, 0.7)"
-                    fontSize="10"
+                    y={CENTER - r + 11}
+                    fill="#64748b"
+                    fontSize="9.5"
+                    fontWeight="500"
                   >
                     {el}°
                   </text>
@@ -188,7 +183,7 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
               cy={CENTER}
               r={minElRadius}
               fill="none"
-              stroke="rgba(251, 191, 36, 0.42)"
+              stroke="#d97706"
               strokeDasharray="4 4"
               strokeWidth="1.2"
             />
@@ -205,14 +200,14 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
                   y1={CENTER + dy}
                   x2={CENTER + dx}
                   y2={CENTER - dy}
-                  stroke="rgba(148, 179, 255, 0.13)"
+                  stroke="#e2e8f0"
                   strokeWidth="1"
                 />
               );
             })}
 
             {/* Zenith cross */}
-            <circle cx={CENTER} cy={CENTER} r="2.5" fill="rgba(148, 179, 255, 0.45)" />
+            <circle cx={CENTER} cy={CENTER} r="2.5" fill="#64748b" />
 
             {/* Compass Labels */}
             {compassPoints.map((cp) => {
@@ -226,8 +221,8 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
                   x={lx}
                   y={ly + 4}
                   textAnchor="middle"
-                  fill={cp.major ? '#f1f5ff' : '#8496c2'}
-                  fontSize={cp.major ? '13' : '10.5'}
+                  fill={cp.major ? '#0f172a' : '#64748b'}
+                  fontSize={cp.major ? '12' : '10'}
                   fontWeight={cp.major ? '700' : '600'}
                 >
                   {cp.label}
@@ -240,9 +235,9 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
               <polyline
                 points={fullPathStr}
                 fill="none"
-                stroke="rgba(148, 179, 255, 0.4)"
-                strokeWidth="2"
-                strokeDasharray="5 4"
+                stroke="#94a3b8"
+                strokeWidth="1.8"
+                strokeDasharray="4 4"
               />
             )}
 
@@ -252,23 +247,22 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
                 key={idx}
                 points={buildPolylinePoints(seg)}
                 fill="none"
-                stroke="#5eead4"
+                stroke="#0d9488"
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                filter="url(#glowCyan)"
               />
             ))}
 
             {/* Start / Peak / End Markers */}
             {startCoord && (
               <g>
-                <circle cx={startCoord.x} cy={startCoord.y} r="5.5" fill="#38bdf8" stroke="#060b18" strokeWidth="1.5" />
+                <circle cx={startCoord.x} cy={startCoord.y} r="5" fill="#0284c7" stroke="#ffffff" strokeWidth="1.5" />
                 <text
-                  x={startCoord.x + 8}
+                  x={startCoord.x + 7}
                   y={startCoord.y - 6}
-                  fill="#bae6fd"
-                  fontSize="10.5"
+                  fill="#0369a1"
+                  fontSize="10"
                   fontWeight="700"
                 >
                   Start
@@ -278,12 +272,12 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
 
             {peakCoord && (
               <g>
-                <circle cx={peakCoord.x} cy={peakCoord.y} r="5.5" fill="#fbbf24" stroke="#060b18" strokeWidth="1.5" />
+                <circle cx={peakCoord.x} cy={peakCoord.y} r="5.5" fill="#d97706" stroke="#ffffff" strokeWidth="1.5" />
                 <text
-                  x={peakCoord.x + 8}
+                  x={peakCoord.x + 7}
                   y={peakCoord.y + 4}
-                  fill="#fde68a"
-                  fontSize="10.5"
+                  fill="#92400e"
+                  fontSize="10"
                   fontWeight="700"
                 >
                   Peak {pass.maxElevationDeg.toFixed(0)}°
@@ -293,12 +287,12 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
 
             {endCoord && (
               <g>
-                <circle cx={endCoord.x} cy={endCoord.y} r="5.5" fill="#fb7185" stroke="#060b18" strokeWidth="1.5" />
+                <circle cx={endCoord.x} cy={endCoord.y} r="5" fill="#e11d48" stroke="#ffffff" strokeWidth="1.5" />
                 <text
-                  x={endCoord.x + 8}
-                  y={endCoord.y + 12}
-                  fill="#fecdd3"
-                  fontSize="10.5"
+                  x={endCoord.x + 7}
+                  y={endCoord.y + 11}
+                  fill="#9f1239"
+                  fontSize="10"
                   fontWeight="700"
                 >
                   End
@@ -312,15 +306,15 @@ export const SkyTrackPlot: React.FC<SkyTrackPlotProps> = ({
                 <circle
                   cx={activeCoord.x}
                   cy={activeCoord.y}
-                  r="10"
-                  fill={activePoint.isVisible ? 'rgba(94, 234, 212, 0.25)' : 'rgba(148, 179, 255, 0.2)'}
+                  r="9"
+                  fill={activePoint.isVisible ? 'rgba(13, 148, 136, 0.18)' : 'rgba(100, 116, 139, 0.15)'}
                 />
                 <circle
                   cx={activeCoord.x}
                   cy={activeCoord.y}
-                  r="5"
-                  fill="#ffffff"
-                  stroke={activePoint.isVisible ? '#2dd4bf' : '#94a3b8'}
+                  r="4.5"
+                  fill={activePoint.isVisible ? '#0d9488' : '#64748b'}
+                  stroke="#ffffff"
                   strokeWidth="2"
                 />
               </g>

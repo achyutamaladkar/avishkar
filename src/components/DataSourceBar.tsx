@@ -1,9 +1,10 @@
 import React from 'react';
 import { AlertTriangle, Database, Radio, RefreshCw } from 'lucide-react';
-import { TleDataset } from '../types/orbit';
+import { getOrbitDataStaleStatus } from '../services/tleService';
+import { OrbitDataset } from '../types/orbit';
 
 interface DataSourceBarProps {
-  tle: TleDataset | null;
+  tle: OrbitDataset | null;
   isLoading: boolean;
   onRefreshLive: () => void;
   onEnterDemo: () => void;
@@ -31,9 +32,13 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
 }) => {
   if (!tle) return null;
 
+  const staleStatus = getOrbitDataStaleStatus(tle);
+
   return (
     <section
-      className={`source-bar ${tle.isDemo ? 'source-bar-demo' : 'source-bar-live'}`}
+      className={`source-bar ${
+        tle.isDemo ? 'source-bar-demo' : staleStatus.stale ? 'source-bar-stale' : 'source-bar-live'
+      }`}
       aria-label="Orbit data status"
     >
       <div className="source-bar-left">
@@ -58,13 +63,23 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
             {tle.fromCache && !tle.isDemo ? ' (cached)' : ''}
           </span>
           <span>
-            <strong>Last refreshed:</strong> {formatAge(tle.fetchedAt)} (
+            <strong>Fetched:</strong> {formatAge(tle.fetchedAt)} (
             {new Date(tle.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
           </span>
           <span>
-            <strong>TLE epoch:</strong> {new Date(tle.epochAt).toUTCString().replace(':00 GMT', ' UTC')}
+            <strong>Element epoch:</strong> {formatAge(tle.epochAt)} (
+            {new Date(tle.epochAt).toUTCString().replace(':00 GMT', ' UTC')})
           </span>
         </div>
+
+        {staleStatus.stale && staleStatus.reason && (
+          <p className="stale-warning" role="status">
+            <AlertTriangle size={14} aria-hidden="true" />
+            <span>
+              <strong>Stale orbit data:</strong> {staleStatus.reason}
+            </span>
+          </p>
+        )}
       </div>
 
       <div className="source-bar-actions">
@@ -85,17 +100,17 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
               className="btn btn-ghost btn-compact"
               onClick={onRefreshLive}
               disabled={isLoading}
-              title="Fetch fresh TLE elements from CelesTrak"
+              title="Fetch fresh OMM orbital elements from CelesTrak"
             >
               <RefreshCw size={14} className={isLoading ? 'spin' : ''} aria-hidden="true" />
-              <span>Refresh TLE</span>
+              <span>Refresh Orbit Data</span>
             </button>
             <button
               type="button"
               className="btn btn-ghost btn-compact"
               onClick={onEnterDemo}
               disabled={isLoading}
-              title="Preview OrbitView with clearly labeled archived sample TLE data"
+              title="Preview OrbitView with clearly labeled archived sample elements"
             >
               <span>Demo Mode</span>
             </button>
