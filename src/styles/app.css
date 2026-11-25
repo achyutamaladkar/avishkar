@@ -962,3 +962,100 @@ input[type='range'] {
     grid-template-columns: 1fr;
   }
 }
+
+/* Stage 3: PWA, mobile polish, loading skeletons, and footer */
+html,
+body {
+  overflow-x: hidden;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skeleton-card {
+  height: 150px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(
+    90deg,
+    rgba(17, 28, 58, 0.75) 25%,
+    rgba(30, 48, 94, 0.7) 50%,
+    rgba(17, 28, 58, 0.75) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.selected-pass-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.app-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.app-footer code {
+  color: var(--text-secondary);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    padding: 14px 12px 36px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .field input[type='text'],
+  .field input[type='number'],
+  .field select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .reminder-buttons,
+  .reminder-buttons .btn {
+    width: 100%;
+  }
+
+  .lead-time-field {
+    width: 100%;
+  }
+
+  .skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+}

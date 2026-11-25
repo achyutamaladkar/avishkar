@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Orbit, Telescope } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Download, Orbit, Telescope } from 'lucide-react';
 import { DataSourceBar } from './components/DataSourceBar';
 import { LocationForm } from './components/LocationForm';
 import { PassDetails } from './components/PassDetails';
@@ -32,6 +32,11 @@ const INITIAL_PREFERENCES: ViewingPreferences = {
   darknessThresholdDeg: -6,
 };
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 export function App() {
   const [location, setLocation] = useState<ObserverLocation>(INITIAL_LOCATION);
   const [preferences, setPreferences] = useState<ViewingPreferences>(INITIAL_PREFERENCES);
@@ -44,6 +49,17 @@ export function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cachedFallbackTle, setCachedFallbackTle] = useState<TleDataset | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const skyPlotRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
   const computeAndApply = useCallback(
     (
@@ -139,6 +155,22 @@ export function App() {
     setCachedFallbackTle(null);
   };
 
+  const handleSelectPass = (passId: string) => {
+    setSelectedPassId(passId);
+    if (window.innerWidth <= 900 && skyPlotRef.current) {
+      window.setTimeout(() => {
+        skyPlotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    }
+  };
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
+
   const selectedPass = useMemo(
     () => prediction?.passes.find((p) => p.id === selectedPassId) ?? null,
     [prediction, selectedPassId],
@@ -158,11 +190,23 @@ export function App() {
             </p>
           </div>
         </div>
-        <div className="header-location-pill">
-          <Telescope size={15} aria-hidden="true" />
-          <span>
-            {location.name} · {location.latitude.toFixed(2)}°, {location.longitude.toFixed(2)}°
-          </span>
+        <div className="header-actions">
+          {installPrompt && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-compact"
+              onClick={() => void handleInstallApp()}
+            >
+              <Download size={14} aria-hidden="true" />
+              <span>Install App</span>
+            </button>
+          )}
+          <div className="header-location-pill">
+            <Telescope size={15} aria-hidden="true" />
+            <span>
+              {location.name} · {location.latitude.toFixed(2)}°, {location.longitude.toFixed(2)}°
+            </span>
+          </div>
         </div>
       </header>
 
@@ -171,6 +215,7 @@ export function App() {
           tle={tle}
           isLoading={isLoading}
           onRefreshLive={() => void runLivePrediction(location, preferences, satelliteId, true)}
+          onEnterDemo={handleActivateDemo}
           onExitDemo={() => void runLivePrediction(location, preferences, satelliteId, true)}
         />
 
@@ -224,13 +269,19 @@ export function App() {
 
           <div className="workspace-right">
             {isLoading && (
-              <div className="panel loading-panel" aria-busy="true">
-                <div className="spinner" aria-hidden="true" />
-                <div>
-                  <h3>Fetching orbit elements &amp; calculating passes…</h3>
-                  <p className="muted">
-                    Running SGP4 propagation and solar illumination checks for {location.name}.
-                  </p>
+              <div className="loading-stack" aria-busy="true">
+                <div className="panel loading-panel">
+                  <div className="spinner" aria-hidden="true" />
+                  <div>
+                    <h3>Fetching orbit elements &amp; calculating passes…</h3>
+                    <p className="muted">
+                      Running SGP4 propagation and solar illumination checks for {location.name}.
+                    </p>
+                  </div>
+                </div>
+                <div className="skeleton-grid" aria-hidden="true">
+                  <div className="skeleton-card" />
+                  <div className="skeleton-card" />
                 </div>
               </div>
             )}
@@ -243,12 +294,12 @@ export function App() {
                 timezone={location.timezone}
                 minElevationDeg={preferences.minElevationDeg}
                 isDemo={Boolean(tle?.isDemo)}
-                onSelectPass={setSelectedPassId}
+                onSelectPass={handleSelectPass}
               />
             )}
 
             {!isLoading && selectedPass && (
-              <>
+              <div ref={skyPlotRef} className="selected-pass-stack">
                 <SkyTrackPlot
                   pass={selectedPass}
                   timezone={location.timezone}
@@ -260,11 +311,19 @@ export function App() {
                   location={location}
                   isDemo={Boolean(tle?.isDemo)}
                 />
-              </>
+              </div>
             )}
           </div>
         </div>
       </main>
+
+      <footer className="app-footer">
+        <p>
+          OrbitView computes predictions locally in your browser using SGP4 orbital propagation (
+          <code>satellite.js</code>) and public GP/TLE data from CelesTrak. Visibility depends on
+          local skies and obstructions.
+        </p>
+      </footer>
     </div>
   );
 }

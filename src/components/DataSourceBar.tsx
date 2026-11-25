@@ -6,6 +6,7 @@ interface DataSourceBarProps {
   tle: TleDataset | null;
   isLoading: boolean;
   onRefreshLive: () => void;
+  onEnterDemo: () => void;
   onExitDemo: () => void;
 }
 
@@ -25,6 +26,7 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
   tle,
   isLoading,
   onRefreshLive,
+  onEnterDemo,
   onExitDemo,
 }) => {
   if (!tle) return null;
@@ -77,16 +79,27 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
             <span>Switch to Live CelesTrak</span>
           </button>
         ) : (
-          <button
-            type="button"
-            className="btn btn-ghost btn-compact"
-            onClick={onRefreshLive}
-            disabled={isLoading}
-            title="Fetch fresh TLE elements from CelesTrak"
-          >
-            <RefreshCw size={14} className={isLoading ? 'spin' : ''} aria-hidden="true" />
-            <span>Refresh TLE</span>
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost btn-compact"
+              onClick={onRefreshLive}
+              disabled={isLoading}
+              title="Fetch fresh TLE elements from CelesTrak"
+            >
+              <RefreshCw size={14} className={isLoading ? 'spin' : ''} aria-hidden="true" />
+              <span>Refresh TLE</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-compact"
+              onClick={onEnterDemo}
+              disabled={isLoading}
+              title="Preview OrbitView with clearly labeled archived sample TLE data"
+            >
+              <span>Demo Mode</span>
+            </button>
+          </>
         )}
       </div>
     </section>
