@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Orbit, Telescope } from 'lucide-react';
 import { DataSourceBar } from './components/DataSourceBar';
 import { LocationForm } from './components/LocationForm';
+import { PassDetails } from './components/PassDetails';
 import { PassList } from './components/PassList';
+import { ReminderActions } from './components/ReminderActions';
+import { SkyTrackPlot } from './components/SkyTrackPlot';
 import { CITY_PRESETS, DEFAULT_SATELLITE_ID } from './data/cities';
 import { predictPasses } from './services/passPredictor';
 import { fetchLiveTle, getDemoTleDataset, TleFetchError } from './services/tleService';
@@ -245,15 +248,19 @@ export function App() {
             )}
 
             {!isLoading && selectedPass && (
-              <div className="panel selected-summary-preview">
-                <p className="eyebrow">Selected Pass Summary</p>
-                <h3>
-                  {selectedPass.satelliteName} · Peak {selectedPass.maxElevationDeg.toFixed(0)}°
-                </h3>
-                <p className="muted">
-                  Selected pass ready for sky-track visualization and calendar reminders in Stage 2.
-                </p>
-              </div>
+              <>
+                <SkyTrackPlot
+                  pass={selectedPass}
+                  timezone={location.timezone}
+                  minElevationDeg={preferences.minElevationDeg}
+                />
+                <PassDetails pass={selectedPass} timezone={location.timezone} />
+                <ReminderActions
+                  pass={selectedPass}
+                  location={location}
+                  isDemo={Boolean(tle?.isDemo)}
+                />
+              </>
             )}
           </div>
         </div>
