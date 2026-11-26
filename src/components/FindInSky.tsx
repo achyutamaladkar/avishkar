@@ -454,6 +454,20 @@ export const FindInSky: React.FC<FindInSkyProps> = ({
               <strong>You're pointing at the predicted ISS position!</strong>
             </div>
           )}
+          {isLiveActive && (
+            <div className="sensor-readout-row">
+              <span>
+                <strong>Live compass:</strong>{' '}
+                {phoneHeading !== null
+                  ? `${Math.round(phoneHeading)}° (${azimuthToCompass(phoneHeading)})`
+                  : 'Unavailable'}
+              </span>
+              <span>
+                <strong>Live tilt:</strong>{' '}
+                {phoneTilt !== null ? `${Math.round(phoneTilt)}°` : 'Unavailable'}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

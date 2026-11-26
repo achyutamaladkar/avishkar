@@ -2398,3 +2398,14 @@ input[type='range'] {
     background: var(--accent-teal-subtle);
   }
 }
+
+.sensor-readout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
