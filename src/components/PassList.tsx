@@ -19,7 +19,6 @@ interface PassListProps {
   minElevationDeg: number;
   searchStartMs: number;
   lookaheadDays: number;
-  isDemo: boolean;
   onSelectPass: (passId: string) => void;
 }
 
@@ -44,7 +43,6 @@ export const PassList: React.FC<PassListProps> = ({
   minElevationDeg,
   searchStartMs,
   lookaheadDays,
-  isDemo,
   onSelectPass,
 }) => {
   const windowLabel = `${lookaheadDays}-day window starting ${formatDateTimeInZone(
@@ -88,10 +86,7 @@ export const PassList: React.FC<PassListProps> = ({
       <p className="prediction-disclaimer">
         <Eye size={14} aria-hidden="true" />
         <span>
-          {isDemo
-            ? 'Demo Mode prediction calculated via SGP4 from archived sample elements (not live orbit data). '
-            : 'Predicted visibility calculated via SGP4 from CelesTrak orbit data, solar illumination, and twilight darkness. '}
-          Weather, clouds, trees, buildings, and light pollution can still affect visibility.
+          Predicted visibility calculated via SGP4 from live CelesTrak orbit data, solar illumination, and twilight darkness. Local clouds or obstructions can still affect visibility.
         </span>
       </p>
 

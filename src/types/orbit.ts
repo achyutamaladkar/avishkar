@@ -1,7 +1,5 @@
 import type { OMMJsonObject } from 'satellite.js';
 
-export type AppDataMode = 'live' | 'demo';
-
 export interface SatelliteOption {
   noradId: string;
   name: string;
@@ -34,7 +32,6 @@ export interface OrbitDataset {
   sourceUrl: string;
   fetchedAt: string;
   epochAt: string;
-  isDemo: boolean;
   fromCache: boolean;
 }
 

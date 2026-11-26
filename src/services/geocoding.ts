@@ -1,4 +1,3 @@
-import { CITY_PRESETS } from '../data/cities';
 import { CityPreset } from '../types/orbit';
 
 interface OpenMeteoGeocodingResult {
@@ -18,36 +17,27 @@ interface OpenMeteoGeocodingResponse {
 
 export interface CitySearchResult {
   matches: CityPreset[];
-  source: 'live' | 'local-fallback';
-}
-
-export function searchLocalCities(query: string): CityPreset[] {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return CITY_PRESETS.slice(0, 6);
-  }
-  return CITY_PRESETS.filter(
-    (city) =>
-      city.name.toLowerCase().includes(normalized) ||
-      city.country.toLowerCase().includes(normalized) ||
-      city.region.toLowerCase().includes(normalized),
-  ).slice(0, 8);
+  status: 'idle' | 'loading' | 'success' | 'no-results' | 'error';
+  errorMessage?: string;
 }
 
 export async function searchCities(query: string, signal?: AbortSignal): Promise<CitySearchResult> {
   const trimmed = query.trim();
-  const localMatches = searchLocalCities(trimmed);
   if (trimmed.length < 2) {
-    return { matches: localMatches, source: 'local-fallback' };
+    return { matches: [], status: 'idle' };
   }
 
   try {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
       trimmed,
-    )}&count=6&language=en&format=json`;
+    )}&count=8&language=en&format=json`;
     const response = await fetch(url, { signal });
     if (!response.ok) {
-      return { matches: localMatches, source: 'local-fallback' };
+      return {
+        matches: [],
+        status: 'error',
+        errorMessage: `Open-Meteo Geocoding service responded with HTTP ${response.status}.`,
+      };
     }
     const payload = (await response.json()) as OpenMeteoGeocodingResponse;
     const apiMatches: CityPreset[] = (payload.results ?? [])
@@ -63,11 +53,19 @@ export async function searchCities(query: string, signal?: AbortSignal): Promise
         timezone: item.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
       }));
 
-    if (apiMatches.length > 0) {
-      return { matches: apiMatches, source: 'live' };
+    if (apiMatches.length === 0) {
+      return { matches: [], status: 'no-results' };
     }
-    return { matches: localMatches, source: 'local-fallback' };
-  } catch {
-    return { matches: localMatches, source: 'local-fallback' };
+
+    return { matches: apiMatches, status: 'success' };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { matches: [], status: 'idle' };
+    }
+    return {
+      matches: [],
+      status: 'error',
+      errorMessage: 'Could not connect to Open-Meteo Geocoding API. Check network connection or enter coordinates manually.',
+    };
   }
 }

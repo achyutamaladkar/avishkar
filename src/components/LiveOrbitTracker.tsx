@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Radio, Satellite } from 'lucide-react';
 import {
   azimuthToCompass,
@@ -13,10 +13,10 @@ interface LiveOrbitTrackerProps {
 }
 
 export const LiveOrbitTracker: React.FC<LiveOrbitTrackerProps> = ({ dataset, location }) => {
-  const [estimate, setEstimate] = useState<CurrentPositionEstimate | null>(null);
-  const [propagationError, setPropagationError] = useState<string | null>(null);
+  const [estimate, setEstimate] = React.useState<CurrentPositionEstimate | null>(null);
+  const [propagationError, setPropagationError] = React.useState<string | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!dataset) {
       setEstimate(null);
       setPropagationError(null);
@@ -53,11 +53,9 @@ export const LiveOrbitTracker: React.FC<LiveOrbitTrackerProps> = ({ dataset, loc
           <Satellite size={16} aria-hidden="true" />
           <strong>{dataset.satelliteName} · Current Estimated Position</strong>
         </div>
-        <span className={`estimate-badge ${dataset.isDemo ? 'badge-demo' : 'badge-estimate'}`}>
+        <span className="estimate-badge badge-estimate">
           <Radio size={12} aria-hidden="true" />
-          {dataset.isDemo
-            ? 'Demo Estimate (Sample Elements)'
-            : 'SGP4 Orbit Estimate · Not Live GPS Telemetry'}
+          SGP4 Orbit Estimate · Not Live GPS Telemetry
         </span>
       </div>
 

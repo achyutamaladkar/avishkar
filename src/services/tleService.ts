@@ -2,100 +2,9 @@ import * as satellite from 'satellite.js';
 import type { OMMJsonObject } from 'satellite.js';
 import { OrbitDataset } from '../types/orbit';
 
-const CACHE_KEY_PREFIX = 'orbitview.orbit.v2.';
+const CACHE_KEY_PREFIX = 'orbitview.orbit.v3.';
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours: polite caching for CelesTrak GP queries
 const STALE_EPOCH_MS = 5 * 24 * 60 * 60 * 1000; // 5 days: SGP4 accuracy warning threshold
-
-/**
- * Archived sample OMM orbital elements used ONLY when the user explicitly enters Demo Mode.
- * Never substituted silently for live predictions.
- */
-export const DEMO_OMM_BY_NORAD: Record<string, Omit<OrbitDataset, 'fetchedAt' | 'fromCache'>> = {
-  '25544': {
-    noradId: '25544',
-    satelliteName: 'ISS (ZARYA)',
-    format: 'omm-json',
-    omm: {
-      OBJECT_NAME: 'ISS (ZARYA)',
-      OBJECT_ID: '1998-067A',
-      EPOCH: '2026-11-24T12:20:30.000000',
-      MEAN_MOTION: 15.4981421,
-      ECCENTRICITY: 0.0006214,
-      INCLINATION: 51.6388,
-      RA_OF_ASC_NODE: 214.482,
-      ARG_OF_PERICENTER: 112.451,
-      MEAN_ANOMALY: 48.291,
-      EPHEMERIS_TYPE: 0,
-      CLASSIFICATION_TYPE: 'U',
-      NORAD_CAT_ID: 25544,
-      ELEMENT_SET_NO: 999,
-      REV_AT_EPOCH: 48215,
-      BSTAR: 0.0002584,
-      MEAN_MOTION_DOT: 0.0001425,
-      MEAN_MOTION_DDOT: 0,
-    },
-    sourceName: 'Demo Sample OMM (Archived ISS Orbital Elements)',
-    sourceUrl: 'local://demo-sample-omm',
-    epochAt: '2026-11-24T12:20:30.000Z',
-    isDemo: true,
-  },
-  '48274': {
-    noradId: '48274',
-    satelliteName: 'CSS (TIANHE)',
-    format: 'omm-json',
-    omm: {
-      OBJECT_NAME: 'CSS (TIANHE)',
-      OBJECT_ID: '2021-035A',
-      EPOCH: '2026-11-24T11:32:40.000000',
-      MEAN_MOTION: 15.6052149,
-      ECCENTRICITY: 0.000492,
-      INCLINATION: 41.4742,
-      RA_OF_ASC_NODE: 92.118,
-      ARG_OF_PERICENTER: 74.12,
-      MEAN_ANOMALY: 285.991,
-      EPHEMERIS_TYPE: 0,
-      CLASSIFICATION_TYPE: 'U',
-      NORAD_CAT_ID: 48274,
-      ELEMENT_SET_NO: 999,
-      REV_AT_EPOCH: 31982,
-      BSTAR: 0.0002124,
-      MEAN_MOTION_DOT: 0.0001812,
-      MEAN_MOTION_DDOT: 0,
-    },
-    sourceName: 'Demo Sample OMM (Archived Tiangong Orbital Elements)',
-    sourceUrl: 'local://demo-sample-omm',
-    epochAt: '2026-11-24T11:32:40.000Z',
-    isDemo: true,
-  },
-  '20580': {
-    noradId: '20580',
-    satelliteName: 'HST',
-    format: 'omm-json',
-    omm: {
-      OBJECT_NAME: 'HST',
-      OBJECT_ID: '1990-037B',
-      EPOCH: '2026-11-24T10:05:00.000000',
-      MEAN_MOTION: 15.1610291,
-      ECCENTRICITY: 0.000248,
-      INCLINATION: 28.4691,
-      RA_OF_ASC_NODE: 164.221,
-      ARG_OF_PERICENTER: 218.54,
-      MEAN_ANOMALY: 141.52,
-      EPHEMERIS_TYPE: 0,
-      CLASSIFICATION_TYPE: 'U',
-      NORAD_CAT_ID: 20580,
-      ELEMENT_SET_NO: 999,
-      REV_AT_EPOCH: 97542,
-      BSTAR: 0.0001392,
-      MEAN_MOTION_DOT: 0.0000314,
-      MEAN_MOTION_DDOT: 0,
-    },
-    sourceName: 'Demo Sample OMM (Archived Hubble Orbital Elements)',
-    sourceUrl: 'local://demo-sample-omm',
-    epochAt: '2026-11-24T10:05:00.000Z',
-    isDemo: true,
-  },
-};
 
 export function normalizeOmmEpochIso(epoch: string): string {
   const trimmed = epoch.trim();
@@ -123,7 +32,7 @@ export function parseTleText(
   rawText: string,
   noradId: string,
   sourceUrl: string,
-): Omit<OrbitDataset, 'fetchedAt' | 'fromCache' | 'isDemo'> {
+): Omit<OrbitDataset, 'fetchedAt' | 'fromCache'> {
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -165,7 +74,7 @@ export function parseOmmJsonPayload(
   payload: unknown,
   noradId: string,
   sourceUrl: string,
-): Omit<OrbitDataset, 'fetchedAt' | 'fromCache' | 'isDemo'> {
+): Omit<OrbitDataset, 'fetchedAt' | 'fromCache'> {
   if (!Array.isArray(payload) || payload.length === 0) {
     throw new Error(`CelesTrak returned no OMM orbital data for NORAD ${noradId}.`);
   }
@@ -244,8 +153,6 @@ export function getOrbitDataStaleStatus(
   dataset: OrbitDataset,
   nowMs = Date.now(),
 ): { stale: boolean; reason?: string } {
-  if (dataset.isDemo) return { stale: false };
-
   const epochMs = Date.parse(dataset.epochAt);
   const fetchedMs = Date.parse(dataset.fetchedAt);
 
@@ -266,15 +173,6 @@ export function getOrbitDataStaleStatus(
   }
 
   return { stale: false };
-}
-
-export function getDemoTleDataset(noradId: string): OrbitDataset {
-  const template = DEMO_OMM_BY_NORAD[noradId] ?? DEMO_OMM_BY_NORAD['25544'];
-  return {
-    ...template,
-    fetchedAt: new Date().toISOString(),
-    fromCache: false,
-  };
 }
 
 export interface TleFetchError extends Error {
@@ -322,7 +220,6 @@ export async function fetchLiveTle(
     const liveDataset: OrbitDataset = {
       ...parsed,
       fetchedAt: new Date().toISOString(),
-      isDemo: false,
       fromCache: false,
     };
     writeCachedTle(liveDataset);

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Compass, LocateFixed, MapPin, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
-import { CITY_PRESETS, COMMON_TIMEZONES, SATELLITE_OPTIONS } from '../data/cities';
-import { searchCities, searchLocalCities } from '../services/geocoding';
+import { COMMON_TIMEZONES, SATELLITE_OPTIONS } from '../data/cities';
+import { searchCities } from '../services/geocoding';
 import { CityPreset, ObserverLocation, ViewingPreferences } from '../types/orbit';
 import { ValidationErrors, parseCoordinatePair, validateViewingInputs } from '../utils/validation';
 
@@ -25,10 +25,10 @@ export const LocationForm: React.FC<LocationFormProps> = ({
   onSubmit,
 }) => {
   const [cityQuery, setCityQuery] = useState(location.name);
-  const [suggestions, setSuggestions] = useState<CityPreset[]>(() => searchLocalCities(''));
+  const [suggestions, setSuggestions] = useState<CityPreset[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [geocodeSource, setGeocodeSource] = useState<'live' | 'local-fallback'>('local-fallback');
-  const [isSearchingCities, setIsSearchingCities] = useState(false);
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'success' | 'no-results' | 'error'>('idle');
+  const [searchErrorMessage, setSearchErrorMessage] = useState<string | null>(null);
 
   const [latitude, setLatitude] = useState(String(location.latitude));
   const [longitude, setLongitude] = useState(String(location.longitude));
@@ -39,9 +39,10 @@ export const LocationForm: React.FC<LocationFormProps> = ({
   const [selectedSatId, setSelectedSatId] = useState(satelliteId);
   const [locationLabel, setLocationLabel] = useState(location.name);
 
-  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [errors, setErrors] = useState<ValidationErrors & { city?: string }>({});
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [needsCitySelection, setNeedsCitySelection] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -56,37 +57,64 @@ export const LocationForm: React.FC<LocationFormProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!showSuggestions) return;
+    if (!showSuggestions || cityQuery.trim().length < 2) {
+      setSuggestions([]);
+      setSearchStatus('idle');
+      return;
+    }
+
     const controller = new AbortController();
+    setSearchStatus('loading');
+    setSearchErrorMessage(null);
+
     const timer = window.setTimeout(async () => {
-      setIsSearchingCities(true);
       const result = await searchCities(cityQuery, controller.signal);
       setSuggestions(result.matches);
-      setGeocodeSource(result.source);
-      setIsSearchingCities(false);
-    }, 220);
+      setSearchStatus(result.status);
+      setSearchErrorMessage(result.errorMessage || null);
+    }, 280);
+
     return () => {
       controller.abort();
       clearTimeout(timer);
     };
   }, [cityQuery, showSuggestions]);
 
-  const applyPreset = (city: CityPreset) => {
-    const label = city.region ? `${city.name}, ${city.country}` : `${city.name}${city.country ? `, ${city.country}` : ''}`;
+  const selectCityResult = (city: CityPreset) => {
+    const label = city.region
+      ? `${city.name}, ${city.region}, ${city.country}`
+      : `${city.name}${city.country ? `, ${city.country}` : ''}`;
     setCityQuery(label);
     setLocationLabel(label);
     setLatitude(String(city.latitude));
     setLongitude(String(city.longitude));
     setElevationM(String(city.elevationM));
     setTimezone(city.timezone);
+    setNeedsCitySelection(false);
     setErrors({});
     setGeoMessage(null);
     setShowSuggestions(false);
+
+    onSubmit({
+      location: {
+        name: label,
+        latitude: city.latitude,
+        longitude: city.longitude,
+        elevationM: city.elevationM,
+        timezone: city.timezone,
+      },
+      preferences: {
+        minElevationDeg,
+        lookaheadDays,
+        darknessThresholdDeg: -6,
+      },
+      satelliteId: selectedSatId,
+    });
   };
 
   const handleUseBrowserLocation = () => {
     if (!('geolocation' in navigator)) {
-      setGeoMessage('Browser geolocation is unavailable on this device. Enter coordinates or pick a city instead.');
+      setGeoMessage('Browser geolocation is unavailable on this device. Search a city or enter coordinates manually.');
       return;
     }
     setIsLocating(true);
@@ -103,15 +131,16 @@ export const LocationForm: React.FC<LocationFormProps> = ({
         setTimezone(browserTz);
         setLocationLabel(`My Location (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`);
         setCityQuery(`My Location (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`);
+        setNeedsCitySelection(false);
         setErrors({});
-        setGeoMessage('Device coordinates loaded. Click "Find passes" to compute visible passes.');
+        setGeoMessage('Device coordinates loaded via browser location. Click "Find passes" to calculate.');
         setIsLocating(false);
       },
       (err) => {
         setGeoMessage(
           err.code === err.PERMISSION_DENIED
-            ? 'Location permission was declined. You can search by city or enter coordinates manually.'
-            : 'Unable to determine browser location right now. Enter a city or coordinates manually.',
+            ? 'Location permission was declined. Please search for a city or enter coordinates manually.'
+            : 'Unable to determine browser location right now. Search for a city or enter coordinates manually.',
         );
         setIsLocating(false);
       },
@@ -127,13 +156,28 @@ export const LocationForm: React.FC<LocationFormProps> = ({
       setLatitude(String(pair.latitude));
       setLongitude(String(pair.longitude));
       setLocationLabel(`Custom (${pair.latitude.toFixed(2)}°, ${pair.longitude.toFixed(2)}°)`);
-    } else if (value.trim()) {
-      setLocationLabel(value.trim());
+      setNeedsCitySelection(false);
+      setErrors((prev) => ({ ...prev, city: undefined }));
+    } else if (value.trim() === location.name) {
+      setLocationLabel(location.name);
+      setNeedsCitySelection(false);
+      setErrors((prev) => ({ ...prev, city: undefined }));
+    } else {
+      setNeedsCitySelection(true);
     }
   };
 
   const handleFormSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (needsCitySelection) {
+      setShowSuggestions(true);
+      setErrors((prev) => ({
+        ...prev,
+        city: 'Select a city from the Open-Meteo results below (or enter "lat, lon") so coordinates, elevation, and time zone update.',
+      }));
+      return;
+    }
+
     const result = validateViewingInputs({
       latitude,
       longitude,
@@ -195,15 +239,17 @@ export const LocationForm: React.FC<LocationFormProps> = ({
 
       <div className="form-grid">
         <div className="field field-full" ref={containerRef}>
-          <label htmlFor="city-search">City search or paste "lat, lon"</label>
+          <label htmlFor="city-search">City search (Open-Meteo Geocoding) or paste "lat, lon"</label>
           <div className="input-with-icon">
             <Search size={16} className="input-icon" aria-hidden="true" />
             <input
               id="city-search"
               type="text"
               value={cityQuery}
-              placeholder="Search e.g. Bengaluru, London, Tokyo or paste 12.97, 77.59"
-              onFocus={() => setShowSuggestions(true)}
+              placeholder="Search e.g. London, Tokyo, Paris or paste 51.50, -0.12"
+              onFocus={() => {
+                if (cityQuery.trim().length >= 2) setShowSuggestions(true);
+              }}
               onChange={(e) => handleCityInputChange(e.target.value)}
               autoComplete="off"
             />
@@ -212,52 +258,65 @@ export const LocationForm: React.FC<LocationFormProps> = ({
             <div className="suggestions-menu" role="listbox" aria-label="City suggestions">
               <div className="suggestions-meta">
                 <span>
-                  {isSearchingCities
-                    ? 'Searching cities…'
-                    : geocodeSource === 'live'
-                      ? 'Live geocoding results'
-                      : 'Quick city index (works offline)'}
+                  {searchStatus === 'loading'
+                    ? 'Querying Open-Meteo Geocoding API…'
+                    : searchStatus === 'error'
+                    ? 'Geocoding service error'
+                    : searchStatus === 'no-results'
+                    ? 'No matching cities found'
+                    : 'Select a city below to update coordinates & time zone'}
                 </span>
               </div>
-              {suggestions.length === 0 ? (
-                <div className="suggestion-empty">
-                  No city match — enter latitude and longitude below.
-                </div>
-              ) : (
-                suggestions.map((city) => (
-                  <button
-                    key={city.id}
-                    type="button"
-                    className="suggestion-item"
-                    onClick={() => applyPreset(city)}
-                  >
-                    <span className="suggestion-main">
-                      <MapPin size={14} aria-hidden="true" />
-                      <strong>{city.name}</strong>
-                      {city.region ? `, ${city.region}` : ''}
-                      {city.country ? ` · ${city.country}` : ''}
-                    </span>
-                    <span className="suggestion-coords">
-                      {city.latitude.toFixed(2)}°, {city.longitude.toFixed(2)}°
-                    </span>
-                  </button>
-                ))
+              {searchStatus === 'loading' && (
+                <div className="suggestion-empty">Searching Open-Meteo for "{cityQuery.trim()}"…</div>
               )}
+              {searchStatus === 'error' && (
+                <div className="suggestion-empty field-error">
+                  {searchErrorMessage || 'Error reaching Open-Meteo Geocoding API.'}
+                </div>
+              )}
+              {searchStatus === 'no-results' && (
+                <div className="suggestion-empty">
+                  No cities found for "{cityQuery.trim()}". Try another query or enter coordinates below.
+                </div>
+              )}
+              {suggestions.map((city) => (
+                <button
+                  key={city.id}
+                  type="button"
+                  className="suggestion-item"
+                  onClick={() => selectCityResult(city)}
+                >
+                  <span className="suggestion-main">
+                    <MapPin size={14} aria-hidden="true" />
+                    <strong>{city.name}</strong>
+                    {city.region ? `, ${city.region}` : ''}
+                    {city.country ? ` · ${city.country}` : ''}
+                  </span>
+                  <span className="suggestion-coords">
+                    {city.latitude.toFixed(2)}°, {city.longitude.toFixed(2)}°
+                  </span>
+                </button>
+              ))}
             </div>
+          )}
+          {errors.city && <span className="field-error">{errors.city}</span>}
+          {needsCitySelection && !errors.city && (
+            <span className="city-pending-hint">
+              Select a matching city from the Open-Meteo dropdown to update coordinates, elevation, and time zone.
+            </span>
           )}
         </div>
 
-        <div className="quick-cities" aria-label="Popular viewing cities">
-          {CITY_PRESETS.slice(0, 5).map((city) => (
-            <button
-              key={city.id}
-              type="button"
-              className="chip-btn"
-              onClick={() => applyPreset(city)}
-            >
-              {city.name}
-            </button>
-          ))}
+        <div className="selected-location-summary field-full">
+          <MapPin size={15} aria-hidden="true" />
+          <div>
+            <span className="metric-label">Active coordinates for passes</span>
+            <strong>{location.name}</strong>
+            <span className="selected-location-coords">
+              {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}° · {location.elevationM} m · {location.timezone}
+            </span>
+          </div>
         </div>
 
         <div className="field">
@@ -271,6 +330,8 @@ export const LocationForm: React.FC<LocationFormProps> = ({
             value={latitude}
             onChange={(e) => {
               setLatitude(e.target.value);
+              setNeedsCitySelection(false);
+              setErrors((prev) => ({ ...prev, city: undefined }));
               setLocationLabel(`Custom (${e.target.value || '?'}°, ${longitude || '?'}°)`);
             }}
             aria-invalid={Boolean(errors.latitude)}
@@ -289,6 +350,8 @@ export const LocationForm: React.FC<LocationFormProps> = ({
             value={longitude}
             onChange={(e) => {
               setLongitude(e.target.value);
+              setNeedsCitySelection(false);
+              setErrors((prev) => ({ ...prev, city: undefined }));
               setLocationLabel(`Custom (${latitude || '?'}°, ${e.target.value || '?'}°)`);
             }}
             aria-invalid={Boolean(errors.longitude)}

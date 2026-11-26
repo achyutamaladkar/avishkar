@@ -7,7 +7,6 @@ import { downloadPassIcs } from '../utils/icsExport';
 interface ReminderActionsProps {
   pass: SatellitePass;
   location: ObserverLocation;
-  isDemo: boolean;
 }
 
 interface StoredReminder {
@@ -20,7 +19,7 @@ interface StoredReminder {
   maxElevationDeg: number;
 }
 
-const REMINDERS_KEY = 'orbitview.reminders.v1';
+const REMINDERS_KEY = 'orbitview.reminders.v2';
 
 function loadReminders(): StoredReminder[] {
   try {
@@ -41,7 +40,7 @@ function saveReminders(reminders: StoredReminder[]): void {
   }
 }
 
-export const ReminderActions: React.FC<ReminderActionsProps> = ({ pass, location, isDemo }) => {
+export const ReminderActions: React.FC<ReminderActionsProps> = ({ pass, location }) => {
   const [leadMinutes, setLeadMinutes] = useState<number>(10);
   const [icsFeedback, setIcsFeedback] = useState<string | null>(null);
   const [notifFeedback, setNotifFeedback] = useState<string | null>(null);
@@ -52,7 +51,6 @@ export const ReminderActions: React.FC<ReminderActionsProps> = ({ pass, location
     notificationsSupported ? Notification.permission : 'unsupported',
   );
 
-  // Schedule active timers for saved reminders while the app is open
   useEffect(() => {
     if (!notificationsSupported || permissionState !== 'granted') return;
 
@@ -70,7 +68,6 @@ export const ReminderActions: React.FC<ReminderActionsProps> = ({ pass, location
               tag: rem.passId,
             });
           } catch {
-            // Some mobile browsers require ServiceWorkerRegistration.showNotification
             if ('serviceWorker' in navigator) {
               void navigator.serviceWorker.ready.then((reg) =>
                 reg.showNotification(`${rem.satelliteName} pass in ${rem.leadMinutes} min`, {
@@ -95,7 +92,7 @@ export const ReminderActions: React.FC<ReminderActionsProps> = ({ pass, location
       pass,
       location,
       reminderMinutes: leadMinutes,
-      isDemo,
+      isDemo: false,
     });
     setIcsFeedback(`Downloaded ${filename} (includes a ${leadMinutes}-minute calendar alert).`);
   };
@@ -233,8 +230,8 @@ export const ReminderActions: React.FC<ReminderActionsProps> = ({ pass, location
         <Info size={14} aria-hidden="true" />
         <span>
           <strong>Browser notification limits:</strong> Web notifications only fire if your browser
-          remains running and permission is granted; some mobile OSes suspend background tabs. For
-          dependable alarms across all devices, use <strong>Download .ics Calendar Event</strong>.
+          remains running and permission is granted. For dependable alarms across devices, use{' '}
+          <strong>Download .ics Calendar Event</strong>.
         </span>
       </p>
 

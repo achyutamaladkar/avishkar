@@ -1,43 +1,45 @@
 # OrbitView
 
-**OrbitView** is a beginner-friendly astronomy dashboard and installable Progressive Web App (PWA) that helps stargazers find upcoming likely-visible passes of the International Space Station (and other bright spacecraft), inspect each pass's arc across the sky, and plan to watch it with calendar exports or browser reminders.
+**OrbitView** is a satellite pass predictor, 3D orbit visualizer, and installable Progressive Web App (PWA) that calculates upcoming likely-visible passes of the International Space Station (and other spacecraft) from live orbital and geocoding data, guides you in the sky, and helps beginners prepare with a built-in **Telescope & Observing Guide**.
 
-## What Problem It Solves
+## Live Data Architecture
 
-Standard orbit trackers often show every overhead pass—even passes that happen in bright daylight, skim behind buildings near the horizon, or cross Earth's shadow unlit. OrbitView filters passes for:
+OrbitView operates strictly on real orbital and geocoding data with zero demo/sample pass fallback:
 
-1. **Observer darkness** — Sun at least 6° below the local horizon (civil/nautical/astronomical twilight).
-2. **Spacecraft illumination** — Satellite outside Earth's cylindrical shadow (sunlit).
-3. **Minimum elevation** — Peak elevation at or above the observer's chosen horizon clearance threshold (default `10°`).
+1. **City Coordinates — Open-Meteo Geocoding API**:
+   - Searches live cities via Open-Meteo Geocoding (`https://geocoding-api.open-meteo.com/v1/search`).
+   - Obtains and applies exact latitude, longitude, elevation, and time zone when you select a result.
+   - Shows loading, empty, and connection error states without substituting preset coordinates.
+2. **Satellite Orbit & Pass Predictions — CelesTrak + satellite.js 6.0.2**:
+   - Fetches current General Perturbations (GP) OMM JSON orbit data directly from CelesTrak (`https://celestrak.org/NORAD/elements/gp.php?CATNR=<id>&FORMAT=JSON`).
+   - Initializes orbital elements with `satellite.json2satrec` and propagates passes using SGP4 starting from the current date and time.
+   - Displays orbit source, fetch timestamp, element epoch, and age.
+   - If CelesTrak or orbital calculation fails, a clear "Data unavailable" message is shown.
 
-All results are clearly labeled as predictions, since clouds, haze, trees, buildings, and light pollution can still affect real-world visibility.
-
-## Features
-
-- **Location & Viewing Preferences**: City search (live Open-Meteo geocoding with built-in offline city fallback), pasted `"lat, lon"` parsing, manual latitude/longitude/elevation inputs, IANA timezone selector, minimum elevation slider, and opt-in browser geolocation (`Use my location`).
-- **Real SGP4 Pass Predictions**: Fetches live General Perturbations (GP) OMM JSON data from **CelesTrak** (`FORMAT=JSON`), parses it with `json2satrec` from `satellite.js`, and runs SGP4 propagation forward from the current date and time.
-- **Current Estimated Position**: Propagates the active orbit elements to the current timestamp every 3 seconds to show sub-satellite latitude/longitude, altitude, speed, and observer look angles—explicitly badged as an SGP4 estimate rather than live GPS telemetry.
-- **Responsible Caching & Honest Fallback**: Caches live OMM elements in `localStorage` for 2 hours and displays source, fetch age, element epoch age, and stale-data warnings. If live fetch or propagation fails, OrbitView shows an explicit error and offers a clearly badged **Demo Mode (Sample Data)** rather than silently substituting sample results.
-- **Interactive Sky-Track Radar**: Polar sky-dome plot (`N`/`E`/`S`/`W` compass bearings, `30°`/`60°` rings, minimum elevation ring) distinguishing the bright sunlit visible arc from shadowed/low segments, with an interactive timeline scrubber and Play/Pause simulation.
-- **Reminders & Calendar Export**: Downloads a standard `.ics` calendar file with a `VALARM` reminder (works even when browser notifications are unavailable) plus optional, permission-gated browser notifications with clear explanation of their lifecycle limits.
-- **Installable PWA**: Responsive dark-navy UI designed for desktop and mobile, complete with Web App Manifest and app-shell Service Worker.
-
-## Running Locally
+## Setup and Running
 
 ### Prerequisites
 
 - Node.js 20+ and npm 10+
 
-### Commands
+### 1. Install Dependencies
 
 ```bash
-# Install dependencies
 npm install
+```
 
-# Start local development server
+### 2. Run Development Server
+
+```bash
 npm run dev
+```
 
-# Run unit tests (SGP4 pass prediction, validation, .ics export)
+Open the printed URL (typically `http://localhost:5173/`).
+
+### 3. Run Tests & Production Build
+
+```bash
+# Run unit & calculation tests
 npm test
 
 # Build production bundle
@@ -47,20 +49,15 @@ npm run build
 npm run preview
 ```
 
-## Demonstrating the Main Flow
+## Main User Flow
 
-1. Launch `npm run dev` and open the local URL printed by Vite.
-2. Choose a city (e.g., **Bengaluru**, **London**, **San Francisco**), click **Use my location**, or enter custom coordinates and time zone.
-3. Adjust **Minimum satellite elevation** (e.g., `15°`) and click **Find passes**.
-4. Review the **Orbit Data Status** bar showing `LIVE SGP4 PREDICTIONS`, CelesTrak source, last-refreshed time, and TLE epoch. *(If offline, click **Open Demo Mode (Sample TLE)** to explore the full UI with clearly labeled archived sample orbital elements.)*
-5. Click any upcoming pass card to inspect its **Sky-Track Radar**, scrub or play through the pass arc, read the visibility/darkness/illumination breakdown, and click **Download .ics Calendar Event** or **Notify Me in Browser**.
-
-## Orbit Data Source & Limitations
-
-- **Orbit data**: Public GP OMM JSON data from [CelesTrak](https://celestrak.org/) (`https://celestrak.org/NORAD/elements/gp.php?CATNR=<id>&FORMAT=JSON`) parsed with `satellite.js` `json2satrec`, cached locally for 2 hours.
-- **Live vs. Demo Mode**: Live predictions show a green `LIVE SGP4 PREDICTIONS` badge in the orbit status bar and `SGP4 Orbit Estimate · Not Live GPS Telemetry` on the position tracker. Demo Mode is only entered explicitly by the user and displays an amber `DEMO MODE · SAMPLE DATA` badge with archived sample OMM elements.
-- **City geocoding**: [Open-Meteo Geocoding API](https://open-meteo.com/) with a built-in curated city fallback for offline use.
-- **Known limitations**:
-  - SGP4 predictions gradually lose timing accuracy as a TLE ages (refresh TLE if more than a few days old; ISS performs periodic reboost maneuvers).
-  - Visibility filtering checks geometric Sun elevation (`<= -6°`), cylindrical Earth umbra, and minimum elevation, but does not query live cloud-cover forecasts, terrain/building obstructions, or visual magnitude/brightness curves.
-  - Browser notifications require the browser/app to remain active (or supported by the OS push/service-worker lifecycle); `.ics` calendar export is recommended for reliable device alarms.
+1. **Sign In**: Enter your name, Gmail address, and password on the login screen.
+2. **Search a City**: Type any city (e.g. *Tokyo*, *London*, *San Francisco*, *Bengaluru*) into the search field and select a result from the Open-Meteo suggestions.
+3. **Inspect Predicted Passes & 3D Orbit**:
+   - Review upcoming likely-visible passes with rise, peak elevation, compass direction, and end time.
+   - Click any pass to inspect its sky path on the **Sky-Track Radar** and its predicted ground track on the **3D Orbit View**.
+4. **Use Find in Sky & Calendar Export**: Launch **Find in Sky** for live compass/tilt guidance on supported mobile browsers, or download an `.ics` calendar reminder.
+5. **Prepare with the Telescope & Observing Guide**:
+   - Choose your setup (Naked-Eye, Binoculars, Refractor, Newtonian/Dobsonian, Maksutov/SCT, or GoTo/Satellite-Tracking).
+   - Review the pass-specific checklist (when to be ready, which direction to face, and how to read the Sky-Track Radar), parts diagrams, setup sequence, common mistakes, and solar safety warning.
+6. **Save to My Journal**: Log your observation notes, equipment, and sky conditions in **My Journal**.

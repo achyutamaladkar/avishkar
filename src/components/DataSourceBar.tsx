@@ -7,8 +7,6 @@ interface DataSourceBarProps {
   tle: OrbitDataset | null;
   isLoading: boolean;
   onRefreshLive: () => void;
-  onEnterDemo: () => void;
-  onExitDemo: () => void;
 }
 
 function formatAge(iso: string): string {
@@ -27,8 +25,6 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
   tle,
   isLoading,
   onRefreshLive,
-  onEnterDemo,
-  onExitDemo,
 }) => {
   if (!tle) return null;
 
@@ -36,31 +32,20 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
 
   return (
     <section
-      className={`source-bar ${
-        tle.isDemo ? 'source-bar-demo' : staleStatus.stale ? 'source-bar-stale' : 'source-bar-live'
-      }`}
+      className={`source-bar ${staleStatus.stale ? 'source-bar-stale' : 'source-bar-live'}`}
       aria-label="Orbit data status"
     >
       <div className="source-bar-left">
-        <span className={`mode-badge ${tle.isDemo ? 'badge-demo' : 'badge-live'}`}>
-          {tle.isDemo ? (
-            <>
-              <AlertTriangle size={14} aria-hidden="true" />
-              DEMO MODE · SAMPLE DATA
-            </>
-          ) : (
-            <>
-              <Radio size={14} aria-hidden="true" />
-              LIVE SGP4 PREDICTIONS
-            </>
-          )}
+        <span className="mode-badge badge-live">
+          <Radio size={14} aria-hidden="true" />
+          LIVE SGP4 PREDICTIONS
         </span>
 
         <div className="source-meta">
           <span>
             <Database size={13} aria-hidden="true" />
             <strong>Source:</strong> {tle.sourceName}
-            {tle.fromCache && !tle.isDemo ? ' (cached)' : ''}
+            {tle.fromCache ? ' (cached)' : ''}
           </span>
           <span>
             <strong>Fetched:</strong> {formatAge(tle.fetchedAt)} (
@@ -83,39 +68,16 @@ export const DataSourceBar: React.FC<DataSourceBarProps> = ({
       </div>
 
       <div className="source-bar-actions">
-        {tle.isDemo ? (
-          <button
-            type="button"
-            className="btn btn-secondary btn-compact"
-            onClick={onExitDemo}
-            disabled={isLoading}
-          >
-            <RefreshCw size={14} aria-hidden="true" />
-            <span>Switch to Live CelesTrak</span>
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="btn btn-ghost btn-compact"
-              onClick={onRefreshLive}
-              disabled={isLoading}
-              title="Fetch fresh OMM orbital elements from CelesTrak"
-            >
-              <RefreshCw size={14} className={isLoading ? 'spin' : ''} aria-hidden="true" />
-              <span>Refresh Orbit Data</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-compact"
-              onClick={onEnterDemo}
-              disabled={isLoading}
-              title="Preview OrbitView with clearly labeled archived sample elements"
-            >
-              <span>Demo Mode</span>
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          className="btn btn-ghost btn-compact"
+          onClick={onRefreshLive}
+          disabled={isLoading}
+          title="Fetch fresh OMM orbital elements from CelesTrak"
+        >
+          <RefreshCw size={14} className={isLoading ? 'spin' : ''} aria-hidden="true" />
+          <span>Refresh Orbit Data</span>
+        </button>
       </div>
     </section>
   );
