@@ -434,8 +434,13 @@ button {
   pointer-events: none;
 }
 
+.field .input-with-icon input,
 .input-with-icon input {
   padding-left: 36px;
+}
+
+.field .password-input-wrap input {
+  padding-right: 40px;
 }
 
 .suggestions-menu {
